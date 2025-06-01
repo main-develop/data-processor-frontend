@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 interface ResultsOptions {
   graphData: Record<string, unknown> | null;
   errors: {
@@ -40,6 +42,13 @@ export default function Results({
   const handleDownloadData = () => {
     alert("Downloading processed data...");
   };
+
+  // Render Plotly chart
+  useEffect(() => {
+    if (graphData) {
+      // Plotly.newPlot("plotly-chart", graphData.data, graphData.layout);
+    }
+  }, [graphData]);
 
   return (
     <>

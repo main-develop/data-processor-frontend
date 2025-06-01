@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import FileUpload from "./FileUpload";
 import ProcessingOptions from "./ProcessingOptions";
 import ProcessingStatus from "./ProcessingStatus";
@@ -30,18 +30,9 @@ export default function App() {
     graph?: string;
   }>({});
 
-  // Render Plotly chart
-  useEffect(() => {
-    if (graphData) {
-      // Plotly.newPlot("plotly-chart", graphData.data, graphData.layout);
-    }
-  }, [graphData]);
-
   return (
     <div className="min-h-screen flex flex-col background-noise">
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-20 flex-1">
-        {/* File Upload */}
         <FileUpload
           file={file}
           setFile={setFile}
@@ -49,7 +40,6 @@ export default function App() {
           errors={errors}
           setErrors={setErrors}
         ></FileUpload>
-        {/* Processing Options */}
         <ProcessingOptions
           processingType={processingType}
           setProcessingType={setProcessingType}
@@ -60,7 +50,6 @@ export default function App() {
           isSampleData={isSampleData}
           setIsSampleData={setIsSampleData}
         ></ProcessingOptions>
-        {/* Processing Status */}
         <ProcessingStatus
           file={file}
           processingStatus={processingStatus}
