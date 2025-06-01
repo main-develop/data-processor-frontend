@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { checkFileType } from "../utils/checkFileType";
 
 interface FileUploadProperties {
