@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { checkFileType } from "./App";
+import { checkFileType } from "../utils/checkFileType";
 
 interface FileUploadProperties {
   file: File | null;

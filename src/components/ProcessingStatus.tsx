@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import z from "zod";
-import { checkFileType } from "./App";
+import { checkFileType } from "../utils/checkFileType";
 
 interface ProcessingStatusOptions {
   file: File | null;
