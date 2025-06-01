@@ -1,20 +1,31 @@
 import { useRef, useState } from "react";
 import z from "zod";
+import { v4 as uuidv4 } from "uuid";
 import { checkFileType } from "../utils/checkFileType";
+import axios from "axios";
 
 interface ProcessingStatusOptions {
   file: File | null;
   processingStatus: string;
   setProcessingStatus: React.Dispatch<React.SetStateAction<string>>;
+  setUploadProgress: React.Dispatch<React.SetStateAction<number>>;
   setGraphData: React.Dispatch<
     React.SetStateAction<Record<string, unknown> | null>
   >;
   processingType: string;
+  errors: {
+    file?: string;
+    processingType?: string;
+    condition?: string;
+    submission?: string;
+    graph?: string;
+  };
   setErrors: React.Dispatch<
     React.SetStateAction<{
       file?: string;
       processingType?: string;
       condition?: string;
+      submission?: string;
       graph?: string;
     }>
   >;
@@ -26,8 +37,10 @@ export default function ProcessingStatus({
   file,
   processingStatus,
   setProcessingStatus,
+  setUploadProgress,
   setGraphData,
   processingType,
+  errors,
   setErrors,
   condition,
   isSampleData,
@@ -35,6 +48,8 @@ export default function ProcessingStatus({
   const [processingProgress, setProcessingProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [sessionId] = useState(uuidv4());
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const formSchema = z.object({
     file: z
@@ -94,43 +109,78 @@ export default function ProcessingStatus({
     return true;
   };
 
-  // Simulate processing
-  const handleProcess = () => {
+  // Submit form to backend
+  const handleProcess = async () => {
     if (!validateForm()) return;
 
     setIsProcessing(true);
-    setProcessingStatus("Processing...");
-    setProcessingProgress(0);
-    processingIntervalRef.current = setInterval(() => {
-      setProcessingProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(processingIntervalRef.current!);
-          processingIntervalRef.current = null;
-          setProcessingStatus("Completed!");
-          setIsProcessing(false);
-          setGraphData({
-            data: [
-              {
-                x: ["Electronics", "Clothing", "Books", "Toys"],
-                y: [500000, 300000, 200000, 150000],
-                type: "bar",
-                marker: {
-                  color: ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"],
-                },
-              },
-            ],
-            layout: {
-              title: "Processed Data Visualization",
-              xaxis: { title: "Category" },
-              yaxis: { title: "Sales (USD)" },
-              margin: { t: 50, b: 100, l: 50, r: 50 },
-            },
-          });
-          return 100;
+    setProcessingStatus("Uploading...");
+    setUploadProgress(0);
+    setErrors((prev) => ({ ...prev, submission: undefined }));
+
+    const formData = new FormData();
+    formData.append("file", file!);
+    formData.append("processing_type", processingType);
+    formData.append("condition", condition);
+    formData.append("is_sample_data", isSampleData.toString());
+    formData.append("session_id", sessionId);
+
+    const source = axios.CancelToken.source();
+    abortControllerRef.current = new AbortController();
+
+    try {
+      const response = await axios.post(
+        "http://localhost:8000/process",
+        formData,
+        {
+          cancelToken: source.token,
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.lengthComputable && progressEvent.total) {
+              const percent = Math.round(
+                (progressEvent.loaded / progressEvent.total) * 100
+              );
+              setUploadProgress(percent);
+            }
+          },
         }
-        return prev + 10;
-      });
-    }, 500);
+      );
+
+      if (response.status !== 200) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      setProcessingStatus("Uploaded. Processing...");
+      setProcessingProgress(0);
+
+      // Simulation of processing progress (replace with real progress from the server)
+      processingIntervalRef.current = setInterval(() => {
+        setProcessingProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(processingIntervalRef.current!);
+            processingIntervalRef.current = null;
+            setProcessingStatus("Completed!");
+            setIsProcessing(false);
+            return 100;
+          }
+          return prev + 10;
+        });
+      }, 500);
+
+      const result = response.data;
+      setGraphData(result.graph_data);
+    } catch (error: any) {
+      if (axios.isCancel(error)) {
+        setProcessingStatus("Cancelled");
+      } else {
+        setErrors((prev) => ({
+          ...prev,
+          submission: `Failed to process: ${error.message}`,
+        }));
+        setProcessingStatus("Error!");
+      }
+      setIsProcessing(false);
+      setProcessingProgress(0);
+    }
   };
 
   // Cancel processing
@@ -139,8 +189,13 @@ export default function ProcessingStatus({
       clearInterval(processingIntervalRef.current);
       processingIntervalRef.current = null;
     }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setProcessingStatus("Cancelled");
     setProcessingProgress(0);
+    setUploadProgress(0);
     setGraphData(null);
     setIsProcessing(false);
   };
@@ -156,7 +211,8 @@ export default function ProcessingStatus({
               className={`font-semibold select-none ${
                 processingStatus === "Completed!"
                   ? "text-green-500"
-                  : processingStatus === "Cancelled"
+                  : processingStatus === "Cancelled" ||
+                    processingStatus === "Error!"
                   ? "text-red-500 opacity-80"
                   : "text-gray-400"
               }`}
@@ -177,6 +233,9 @@ export default function ProcessingStatus({
                   Processing progress: {processingProgress}%
                 </p>
               </>
+            )}
+            {errors.submission && (
+              <p className="text-red-500 text-sm mt-2">{errors.submission}</p>
             )}
             {processingStatus !== "Completed!" && (
               <button

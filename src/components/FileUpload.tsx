@@ -5,10 +5,13 @@ interface FileUploadProperties {
   file: File | null;
   setFile: React.Dispatch<React.SetStateAction<File | null>>;
   setProcessingStatus: React.Dispatch<React.SetStateAction<string>>;
+  uploadProgress: number;
+  setUploadProgress: React.Dispatch<React.SetStateAction<number>>;
   errors: {
     file?: string;
     processingType?: string;
     condition?: string;
+    submission?: string;
     graph?: string;
   };
   setErrors: React.Dispatch<
@@ -16,6 +19,7 @@ interface FileUploadProperties {
       file?: string;
       processingType?: string;
       condition?: string;
+      submission?: string;
       graph?: string;
     }>
   >;
@@ -25,11 +29,11 @@ export default function FileUpload({
   file,
   setFile,
   setProcessingStatus,
+  uploadProgress,
+  setUploadProgress,
   errors,
   setErrors,
 }: FileUploadProperties): React.JSX.Element {
-  const [uploadProgress, setUploadProgress] = useState(0);
-
   // Handle file selection and auto-upload
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setErrors((prev) => ({ ...prev, file: undefined }));

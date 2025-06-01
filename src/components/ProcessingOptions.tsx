@@ -20,6 +20,7 @@ interface ProcessingOptionsProperties {
     file?: string;
     processingType?: string;
     condition?: string;
+    submission?: string;
     graph?: string;
   };
   setErrors: React.Dispatch<
@@ -27,6 +28,7 @@ interface ProcessingOptionsProperties {
       file?: string;
       processingType?: string;
       condition?: string;
+      submission?: string;
       graph?: string;
     }>
   >;

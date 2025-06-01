@@ -14,6 +14,7 @@ export const processingTypes = [
 
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [processingStatus, setProcessingStatus] = useState("");
   const [processingType, setProcessingType] = useState(
     processingTypes[0].processingType
@@ -27,6 +28,7 @@ export default function App() {
     file?: string;
     processingType?: string;
     condition?: string;
+    submission?: string;
     graph?: string;
   }>({});
 
@@ -37,6 +39,8 @@ export default function App() {
           file={file}
           setFile={setFile}
           setProcessingStatus={setProcessingStatus}
+          uploadProgress={uploadProgress}
+          setUploadProgress={setUploadProgress}
           errors={errors}
           setErrors={setErrors}
         ></FileUpload>
@@ -54,8 +58,10 @@ export default function App() {
           file={file}
           processingStatus={processingStatus}
           setProcessingStatus={setProcessingStatus}
+          setUploadProgress={setUploadProgress}
           setGraphData={setGraphData}
           processingType={processingType}
+          errors={errors}
           setErrors={setErrors}
           condition={condition}
           isSampleData={isSampleData}

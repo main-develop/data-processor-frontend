@@ -6,6 +6,7 @@ interface ResultsOptions {
     file?: string;
     processingType?: string;
     condition?: string;
+    submission?: string;
     graph?: string;
   };
   setErrors: React.Dispatch<
@@ -13,6 +14,7 @@ interface ResultsOptions {
       file?: string;
       processingType?: string;
       condition?: string;
+      submission?: string;
       graph?: string;
     }>
   >;
