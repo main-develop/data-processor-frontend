@@ -9,9 +9,7 @@ interface ProcessingStatusOptions {
   processingStatus: string;
   setProcessingStatus: React.Dispatch<React.SetStateAction<string>>;
   setUploadProgress: React.Dispatch<React.SetStateAction<number>>;
-  setGraphData: React.Dispatch<
-    React.SetStateAction<Record<string, unknown> | null>
-  >;
+  setGraphData: React.Dispatch<React.SetStateAction<any[]>>;
   processingType: string;
   errors: {
     file?: string;
@@ -130,7 +128,7 @@ export default function ProcessingStatus({
 
     try {
       const response = await axios.post(
-        "http://localhost:8000/process",
+        "http://localhost:8000/process-dataset",
         formData,
         {
           cancelToken: source.token,
@@ -196,7 +194,7 @@ export default function ProcessingStatus({
     setProcessingStatus("Cancelled");
     setProcessingProgress(0);
     setUploadProgress(0);
-    setGraphData(null);
+    setGraphData([]);
     setIsProcessing(false);
   };
 

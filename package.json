@@ -12,12 +12,17 @@
   "dependencies": {
     "@headlessui/react": "^2.2.4",
     "@heroicons/react": "^2.2.0",
+    "@nivo/core": "^0.99.0",
+    "@types/file-saver": "^2.0.7",
     "@types/node": "^22.15.29",
     "axios": "^1.9.0",
+    "file-saver": "^2.0.5",
     "framer-motion": "^12.15.0",
     "postcss": "^8.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "recharts": "^2.15.3",
+    "recharts-to-png": "^2.4.0",
     "uuid": "^11.1.0",
     "zod": "^3.25.42"
   },

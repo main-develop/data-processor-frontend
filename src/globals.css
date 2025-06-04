@@ -19,10 +19,6 @@
   }
 }
 
-#plotly-chart {
-  min-height: 400px;
-}
-
 .drag-over {
   border: 2px dashed #10b981;
   background-color: rgba(16, 185, 129, 0.03);

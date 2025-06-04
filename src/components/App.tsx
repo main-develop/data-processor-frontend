@@ -21,9 +21,7 @@ export default function App() {
   );
   const [condition, setCondition] = useState("");
   const [isSampleData, setIsSampleData] = useState(false);
-  const [graphData, setGraphData] = useState<Record<string, unknown> | null>(
-    null
-  );
+  const [graphData, setGraphData] = useState<any[]>([]);
   const [errors, setErrors] = useState<{
     file?: string;
     processingType?: string;
@@ -67,11 +65,7 @@ export default function App() {
           isSampleData={isSampleData}
         ></ProcessingStatus>
         {/* Graph Display */}
-        <Results
-          graphData={graphData}
-          errors={errors}
-          setErrors={setErrors}
-        ></Results>
+        <Results graphData={graphData} errors={errors}></Results>
       </main>
       <Footer></Footer>
     </div>
