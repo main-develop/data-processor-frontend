@@ -1,4 +1,6 @@
+import type { Errors, DatasetMetadata } from "./App";
 import { checkFileType } from "../utils/checkFileType";
+import axios from "axios";
 
 interface FileUploadProperties {
   file: File | null;
@@ -6,22 +8,12 @@ interface FileUploadProperties {
   setProcessingStatus: React.Dispatch<React.SetStateAction<string>>;
   uploadProgress: number;
   setUploadProgress: React.Dispatch<React.SetStateAction<number>>;
-  errors: {
-    file?: string;
-    processingType?: string;
-    condition?: string;
-    submission?: string;
-    graph?: string;
-  };
-  setErrors: React.Dispatch<
-    React.SetStateAction<{
-      file?: string;
-      processingType?: string;
-      condition?: string;
-      submission?: string;
-      graph?: string;
-    }>
-  >;
+  errors: Errors;
+  setErrors: React.Dispatch<React.SetStateAction<Errors>>;
+  setMetadata: React.Dispatch<React.SetStateAction<DatasetMetadata | null>>;
+  sessionId: string;
+  isSampleData: boolean;
+  resetAppState: () => void;
 }
 
 export default function FileUpload({
@@ -32,8 +24,11 @@ export default function FileUpload({
   setUploadProgress,
   errors,
   setErrors,
+  setMetadata,
+  sessionId,
+  isSampleData,
+  resetAppState,
 }: FileUploadProperties): React.JSX.Element {
-  // Handle file selection and auto-upload
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setErrors((prev) => ({ ...prev, file: undefined }));
 
@@ -43,9 +38,10 @@ export default function FileUpload({
           ...prev,
           file: "Please select a valid file type",
         }));
-        return false;
+        return;
       }
 
+      resetAppState(); // Reset all states to hide other sections
       const selectedFile = e.target.files[0];
       setFile(selectedFile);
       setUploadProgress(0);
@@ -54,7 +50,6 @@ export default function FileUpload({
     }
   };
 
-  // Handle drag and drop with validation
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setErrors((prev) => ({ ...prev, file: undefined }));
@@ -65,11 +60,11 @@ export default function FileUpload({
           ...prev,
           file: "Please select a valid file type",
         }));
-
         e.currentTarget.classList.remove("drag-over");
-        return false;
+        return;
       }
 
+      resetAppState(); // Reset all states to hide other sections
       const droppedFile = e.dataTransfer.files[0];
       setFile(droppedFile);
       setUploadProgress(0);
@@ -88,19 +83,32 @@ export default function FileUpload({
     e.currentTarget.classList.remove("drag-over");
   };
 
-  // Simulate file upload
   const handleUpload = async (fileToUpload: File) => {
     setProcessingStatus("Uploading...");
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setProcessingStatus("Uploaded. Ready to process.");
-          return 100;
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append("file", fileToUpload);
+    formData.append("session_id", sessionId);
+    formData.append("is_sample_data", isSampleData.toString());
+
+    try {
+      const response = await axios.post(
+        "http://localhost:8000/analyze-dataset",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
         }
-        return prev + 10;
-      });
-    }, 500);
+      );
+      setMetadata(response.data);
+    } catch (error: any) {
+      setErrors((prev) => ({
+        ...prev,
+        file: `Failed to analyze file: ${error.message}`,
+      }));
+      setProcessingStatus("Error!");
+      setUploadProgress(0);
+    }
   };
 
   return (

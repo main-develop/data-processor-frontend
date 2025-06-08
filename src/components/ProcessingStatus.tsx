@@ -1,104 +1,77 @@
-import { useRef, useState } from "react";
-import z from "zod";
-import { v4 as uuidv4 } from "uuid";
-import { checkFileType } from "../utils/checkFileType";
+import type { DataAttributes, Errors, ProcessingOptionsState } from "./App";
+import { useState } from "react";
+import { filterSchema } from "../schemes/filterSchema";
+import { aggregateSchema } from "../schemes/aggregateSchema";
+import { summarySchema } from "../schemes/summarySchema";
 import axios from "axios";
 
 interface ProcessingStatusOptions {
-  file: File | null;
+  processingOptions: ProcessingOptionsState;
   processingStatus: string;
   setProcessingStatus: React.Dispatch<React.SetStateAction<string>>;
-  setUploadProgress: React.Dispatch<React.SetStateAction<number>>;
-  setGraphData: React.Dispatch<React.SetStateAction<any[]>>;
-  processingType: string;
-  errors: {
-    file?: string;
-    processingType?: string;
-    condition?: string;
-    submission?: string;
-    graph?: string;
-  };
-  setErrors: React.Dispatch<
-    React.SetStateAction<{
-      file?: string;
-      processingType?: string;
-      condition?: string;
-      submission?: string;
-      graph?: string;
-    }>
-  >;
-  condition: string;
-  isSampleData: boolean;
+  uploadProgress: number;
+  analysisProgress: number;
+  processingProgress: number;
+  setProcessingProgress: React.Dispatch<React.SetStateAction<number>>;
+  setData: React.Dispatch<React.SetStateAction<DataAttributes | undefined>>;
+  errors: Errors;
+  setErrors: React.Dispatch<React.SetStateAction<Errors>>;
+  sessionId: string;
 }
 
 export default function ProcessingStatus({
-  file,
+  processingOptions,
   processingStatus,
   setProcessingStatus,
-  setUploadProgress,
-  setGraphData,
-  processingType,
+  uploadProgress,
+  analysisProgress,
+  processingProgress,
+  setProcessingProgress,
+  setData,
   errors,
   setErrors,
-  condition,
-  isSampleData,
+  sessionId,
 }: ProcessingStatusOptions): React.JSX.Element {
-  const [processingProgress, setProcessingProgress] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const processingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [sessionId] = useState(uuidv4());
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const {
+    processingType,
+    condition,
+    isSampleData,
+    groupByColumn,
+    aggregateColumn,
+    aggregateFunction,
+  } = processingOptions;
 
-  const formSchema = z.object({
-    file: z
-      .instanceof(File)
-      .refine(
-        (file) => {
-          return checkFileType(file);
-        },
-        {
-          message: "Please select a valid file type",
-        }
-      )
-      .refine((file) => file.size <= 10 * 1024 * 1024 * 1024, {
-        message: "File size must be less than 10GB",
-      }),
-    processingType: z.enum(
-      ["Filter data", "Aggregate data", "Join datasets", "Generate summary"],
-      {
-        errorMap: () => ({ message: "Please select a valid processing type" }),
-      }
-    ),
-    condition: z
-      .string()
-      .min(1, "Condition is required")
-      .max(100, "Condition must be 100 characters or less")
-      .regex(
-        /^[a-zA-Z0-9_\s><=]+$/,
-        "Condition can only contain letters, numbers, underscores, spaces, and comparison operators"
-      ),
-    isSampleData: z.boolean().optional(),
-  });
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const validateForm = () => {
-    if (!file) {
-      setErrors({ file: "Please upload a file" });
-      return false;
+    let data: any = {
+      processingType,
+      isSampleData,
+    };
+    let result = null;
+
+    if (processingType === "Filter data") {
+      data.condition = condition;
+      result = filterSchema.safeParse(data);
+    } else if (processingType === "Aggregate data") {
+      data.aggregateColumn = aggregateColumn;
+      data.aggregateFunction = aggregateFunction;
+      data.groupByColumn = groupByColumn;
+      result = aggregateSchema.safeParse(data);
+    } else if (processingType === "Generate summary") {
+      result = summarySchema.safeParse(data);
     }
 
-    const result = formSchema.safeParse({
-      file,
-      processingType,
-      condition,
-      isSampleData,
-    });
-
-    if (!result.success) {
-      const formattedErrors = result.error.flatten().fieldErrors;
+    if (result && !result.success) {
+      const formattedErrors = result.error.flatten().fieldErrors as Record<
+        string,
+        string[] | undefined
+      >;
       setErrors({
-        file: formattedErrors.file?.[0],
-        processingType: formattedErrors.processingType?.[0],
         condition: formattedErrors.condition?.[0],
+        groupByColumn: formattedErrors.groupByColumn?.[0],
+        aggregateColumn: formattedErrors.aggregateColumn?.[0],
+        aggregateFunction: formattedErrors.aggregateFunction?.[0],
       });
       return false;
     }
@@ -107,149 +80,131 @@ export default function ProcessingStatus({
     return true;
   };
 
-  // Submit form to backend
   const handleProcess = async () => {
     if (!validateForm()) return;
 
     setIsProcessing(true);
-    setProcessingStatus("Uploading...");
-    setUploadProgress(0);
+    setProcessingStatus("Processing...");
+    setProcessingProgress(0);
     setErrors((prev) => ({ ...prev, submission: undefined }));
 
-    const formData = new FormData();
-    formData.append("file", file!);
-    formData.append("processing_type", processingType);
-    formData.append("condition", condition);
-    formData.append("is_sample_data", isSampleData.toString());
-    formData.append("session_id", sessionId);
+    const data: any = {
+      processing_type: processingType,
+      is_sample_data: isSampleData,
+      session_id: sessionId,
+    };
 
-    const source = axios.CancelToken.source();
-    abortControllerRef.current = new AbortController();
+    if (processingType === "Filter data") {
+      data.condition = condition;
+    } else if (processingType === "Aggregate data") {
+      data.group_by_column = groupByColumn;
+      data.aggregation_column = aggregateColumn;
+      data.aggregation_function = aggregateFunction;
+    }
 
     try {
       const response = await axios.post(
         "http://localhost:8000/process-dataset",
-        formData,
+        data,
         {
-          cancelToken: source.token,
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.lengthComputable && progressEvent.total) {
-              const percent = Math.round(
-                (progressEvent.loaded / progressEvent.total) * 100
-              );
-              setUploadProgress(percent);
-            }
-          },
+          headers: { "Content-Type": "application/json" },
         }
       );
-
-      if (response.status !== 200) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-
-      setProcessingStatus("Uploaded. Processing...");
-      setProcessingProgress(0);
-
-      // Simulation of processing progress (replace with real progress from the server)
-      processingIntervalRef.current = setInterval(() => {
-        setProcessingProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(processingIntervalRef.current!);
-            processingIntervalRef.current = null;
-            setProcessingStatus("Completed!");
-            setIsProcessing(false);
-            return 100;
-          }
-          return prev + 10;
-        });
-      }, 500);
-
-      const result = response.data;
-      setGraphData(result.graph_data);
-    } catch (error: any) {
-      if (axios.isCancel(error)) {
-        setProcessingStatus("Cancelled");
-      } else {
-        setErrors((prev) => ({
-          ...prev,
-          submission: `Failed to process: ${error.message}`,
-        }));
-        setProcessingStatus("Error!");
-      }
+      setData({
+        result: response.data.result,
+        graphs: response.data.graphs,
+      });
       setIsProcessing(false);
+    } catch (error: any) {
+      setErrors((prev) => ({
+        ...prev,
+        submission: `Failed to process: ${
+          error.response?.data?.detail || error.message
+        }`,
+      }));
+      setProcessingStatus("Error!");
       setProcessingProgress(0);
+      setIsProcessing(false);
     }
   };
 
-  // Cancel processing
   const handleCancel = () => {
-    if (processingIntervalRef.current) {
-      clearInterval(processingIntervalRef.current);
-      processingIntervalRef.current = null;
-    }
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
     setProcessingStatus("Cancelled");
     setProcessingProgress(0);
-    setUploadProgress(0);
-    setGraphData([]);
+    setData(undefined);
     setIsProcessing(false);
   };
 
+  // Determine which progress to display
+  const currentProgress = processingStatus.includes("Uploading...")
+    ? uploadProgress
+    : processingStatus.includes("Starting analysis...") ||
+      processingStatus.includes("Analyzing columns...") ||
+      processingStatus.includes("Finalizing metadata...") ||
+      processingStatus.includes("Analysis Complete")
+    ? analysisProgress
+    : processingProgress;
+
+  // Hide during initial state or upload phase
+  if (!processingStatus || processingStatus === "Uploading...") {
+    return <></>;
+  }
+
   return (
-    <>
-      {processingStatus && (
-        <div className="relative">
-          <div className="section-gradient-shadow"></div>
-          <section className="mb-20 p-6 rounded-xl shadow-md glassmorphism">
-            <h2 className="text-xl font-semibold mb-4">Processing Status</h2>
-            <p
-              className={`font-semibold select-none ${
-                processingStatus === "Completed!"
-                  ? "text-green-500"
-                  : processingStatus === "Cancelled" ||
-                    processingStatus === "Error!"
-                  ? "text-red-500 opacity-80"
-                  : "text-gray-400"
-              }`}
-            >
-              {processingStatus}
+    <div className="relative">
+      <div className="section-gradient-shadow"></div>
+      <section className="mb-20 p-6 rounded-xl shadow-md glassmorphism">
+        <h2 className="text-xl font-semibold mb-4">Processing Status</h2>
+        <p
+          className={`font-semibold select-none ${
+            processingStatus === "Completed!" ||
+            processingStatus === "Analysis Complete"
+              ? "text-green-500"
+              : processingStatus === "Cancelled" ||
+                processingStatus === "Error!"
+              ? "text-red-500 opacity-80"
+              : "text-gray-400"
+          }`}
+        >
+          {processingStatus}
+        </p>
+        {processingStatus !== "Analysis Complete" && (
+          <>
+            <div className="w-full bg-gray-500/30 rounded-full h-2.5 mt-2">
+              <div
+                className="bg-green-500 h-2.5 rounded-full [transition-property:all] ease-in-out duration-500"
+                style={{ width: `${currentProgress}%` }}
+              ></div>
+            </div>
+            <p className="text-sm text-gray-200 opacity-40 mt-1 select-none [transition-property:all] ease-in-out duration-500">
+              {processingStatus.includes("Starting analysis") ||
+              processingStatus.includes("Analyzing") ||
+              processingStatus.includes("Finalizing metadata")
+                ? `Analysis progress: ${currentProgress}%`
+                : `Processing progress: ${currentProgress}%`}
             </p>
-            {!["Uploaded. Ready to process.", "Uploading..."].includes(
-              processingStatus
-            ) && (
-              <>
-                <div className="w-full bg-gray-500/30 rounded-full h-2.5 mt-2">
-                  <div
-                    className="bg-green-500 h-2.5 rounded-full [transition-property:all] ease-in-out duration-500"
-                    style={{ width: `${processingProgress}%` }}
-                  ></div>
-                </div>
-                <p className="text-sm text-gray-200 opacity-40 mt-1 select-none [transition-property:all] ease-in-out duration-500">
-                  Processing progress: {processingProgress}%
-                </p>
-              </>
-            )}
-            {errors.submission && (
-              <p className="text-red-500 text-sm mt-2">{errors.submission}</p>
-            )}
-            {processingStatus !== "Completed!" && (
-              <button
-                onClick={isProcessing ? handleCancel : handleProcess}
-                className={`mt-4 py-2 px-4 rounded-lg select-none outline-none [transition-property:all] ease-in-out duration-500 ${
-                  isProcessing
-                    ? "border border-red-500 text-red-500 hover:bg-[#f1141433]"
-                    : "border-none text-gray-300 bg-indigo-600 hover:bg-indigo-700"
-                }`}
-              >
-                {isProcessing ? "Cancel" : "Start Processing"}
-              </button>
-            )}
-          </section>
-        </div>
-      )}
-    </>
+          </>
+        )}
+        {errors.submission && (
+          <p className="text-red-500 text-sm mt-2">{errors.submission}</p>
+        )}
+        {processingStatus !== "Processing..." && (
+          <button
+            onClick={isProcessing ? handleCancel : handleProcess}
+            className={`mt-4 py-2 px-4 rounded-lg select-none outline-none [transition-property:all] ease-in-out duration-500 ${
+              isProcessing
+                ? "border border-red-500 text-red-500 hover:bg-[#f1141433]"
+                : "border-none text-gray-300 bg-indigo-600 hover:bg-indigo-700"
+            }`}
+          >
+            {isProcessing
+              ? "Cancel"
+              : processingStatus === "Analysis Complete"
+              ? "Start Processing"
+              : "Process Again"}
+          </button>
+        )}
+      </section>
+    </div>
   );
 }

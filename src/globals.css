@@ -45,7 +45,7 @@
 
 .glassmorphism {
   background-color: rgba(82, 82, 82, 0.1);
-  /* color: #242323; */
+  /* color: hsl(143, 40%, 65%); */
   background-clip: padding-box;
   backdrop-filter: blur(8px) saturate(100%) contrast(100%);
 }
