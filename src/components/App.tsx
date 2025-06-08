@@ -103,15 +103,19 @@ export default function App() {
 
       const websocket = new WebSocket(
         `ws://localhost:8000/ws/progress/${sessionId}`
+        // `ws://backend:8000/ws/progress/${sessionId}`
       );
       websocket.onopen = () => {
-        console.log("WebSocket connected");
+        // console.log(
+        //   "WebSocket connected to:",
+        //   `ws://backend:8000/ws/progress/${sessionId}`
+        // );
         setWs(websocket);
         reconnectAttempts = 0;
       };
       websocket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        console.log("WebSocket message:", data);
+        // console.log("WebSocket message:", data);
         const { progress, message } = data;
 
         setProcessingStatus(message);
@@ -146,7 +150,7 @@ export default function App() {
         }
       };
       websocket.onclose = () => {
-        console.log("WebSocket closed");
+        // console.log("WebSocket closed");
         setWs(null);
         if (reconnectAttempts < maxReconnectAttempts) {
           reconnectAttempts += 1;
@@ -160,11 +164,11 @@ export default function App() {
         }
       };
       websocket.onerror = (error) => {
-        console.error("WebSocket error:", error);
+        // console.error("WebSocket error:", error);
         setErrors((prev) => ({
           ...prev,
           file: "WebSocket connection failed",
-          submission: "WebSocket connection failed",
+          submission: `WebSocket connection failed: ${error}`,
         }));
         setProcessingStatus("Error!");
       };
